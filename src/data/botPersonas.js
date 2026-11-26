@@ -1,0 +1,214 @@
+// Bot Personas — Named characters and legendary chess figures
+// Each persona has a unique face, gender, title, rating, playstyle description, and engine tuning.
+
+export const BOT_TIERS = [
+  {
+    tier: 'New to Chess',
+    description: 'Friendly practice for new players and casual games',
+    bots: [1, 2, 3]
+  },
+  {
+    tier: 'Beginner & Club',
+    description: 'Sharp tactics and classical opening development',
+    bots: [4, 5, 6]
+  },
+  {
+    tier: 'Chess Legends & Masters',
+    description: 'Challenge the greatest minds in chess history',
+    bots: [7, 8, 9, 10, 11]
+  }
+];
+
+export const BOT_PERSONAS = [
+  {
+    level: 1,
+    name: 'Allen',
+    gender: 'Male',
+    elo: 250,
+    title: 'Beginner',
+    avatarId: 'allen',
+    description: 'Just learned the rules. Often moves the same piece twice and hangs material.',
+    skinTone: '#f8d0a8',
+    hairColor: '#e05a36', // ginger/red hair like reference image
+    shirtColor: '#f97316',
+    bgColor: '#241b17',
+    skillLevel: 0,
+    depth: 1,
+    movetime: 150,
+    blunderChance: 0.70
+  },
+  {
+    level: 2,
+    name: 'Lavish',
+    gender: 'Male',
+    elo: 500,
+    title: 'Casual Player',
+    avatarId: 'lavish',
+    description: 'Plays fast and optimistic attacks, but susceptible to basic counter-tactics.',
+    skinTone: '#eec7a2',
+    hairColor: '#2b2320',
+    shirtColor: '#38bdf8',
+    bgColor: '#14202c',
+    skillLevel: 0,
+    depth: 1,
+    movetime: 200,
+    blunderChance: 0.50
+  },
+  {
+    level: 3,
+    name: 'Mufty',
+    gender: 'Female',
+    elo: 800,
+    title: 'Novice',
+    avatarId: 'mufty',
+    description: 'Methodical and observant. Develops pieces carefully and watches for checks.',
+    skinTone: '#fedac2',
+    hairColor: '#a8422b',
+    shirtColor: '#f59e0b',
+    bgColor: '#261f18',
+    skillLevel: 2,
+    depth: 2,
+    movetime: 250,
+    blunderChance: 0.35
+  },
+  {
+    level: 4,
+    name: 'Wanzil',
+    gender: 'Male',
+    elo: 1100,
+    title: 'Intermediate',
+    avatarId: 'wanzil',
+    description: 'Knows opening principles, controls the center, and can execute basic mating nets.',
+    skinTone: '#d99f73',
+    hairColor: '#261b17',
+    shirtColor: '#10b981',
+    bgColor: '#15241d',
+    skillLevel: 5,
+    depth: 3,
+    movetime: 300,
+    blunderChance: 0.20
+  },
+  {
+    level: 5,
+    name: 'Paul Morphy',
+    gender: 'Male',
+    elo: 1400,
+    title: 'The Romantic Prodigy',
+    avatarId: 'morphy',
+    description: '1850s attacking genius. Sacrifices pieces for rapid piece mobilization and open files.',
+    skinTone: '#f4cbb0',
+    hairColor: '#3a2318',
+    shirtColor: '#8b5cf6',
+    bgColor: '#1f162d',
+    skillLevel: 8,
+    depth: 5,
+    movetime: 400,
+    blunderChance: 0.10
+  },
+  {
+    level: 6,
+    name: 'Judit Polgár',
+    gender: 'Female',
+    elo: 1700,
+    title: 'Greatest Female Player',
+    avatarId: 'polgar',
+    description: 'Aggressive tactical monster who defeated 11 world champions with relentless initiative.',
+    skinTone: '#fcd3b6',
+    hairColor: '#451e18',
+    shirtColor: '#ec4899',
+    bgColor: '#2b1522',
+    skillLevel: 12,
+    depth: 7,
+    movetime: 500,
+    blunderChance: 0.03
+  },
+  {
+    level: 7,
+    name: 'José Capablanca',
+    gender: 'Male',
+    elo: 2000,
+    title: '3rd World Champion',
+    avatarId: 'capablanca',
+    description: 'The Chess Machine. Renowned for crystal-clear positional play and flawless endgame conversion.',
+    skinTone: '#e3b18d',
+    hairColor: '#1c1c1c',
+    shirtColor: '#0ea5e9',
+    bgColor: '#12212b',
+    skillLevel: 15,
+    depth: 10,
+    movetime: 600,
+    blunderChance: 0
+  },
+  {
+    level: 8,
+    name: 'Bobby Fischer',
+    gender: 'Male',
+    elo: 2300,
+    title: '11th World Champion',
+    avatarId: 'fischer',
+    description: 'Legendary American champion. Direct, uncompromising, dynamic play always searching for truth.',
+    skinTone: '#f8d2b2',
+    hairColor: '#63442d',
+    shirtColor: '#ef4444',
+    bgColor: '#291717',
+    skillLevel: 18,
+    depth: 13,
+    movetime: 700,
+    blunderChance: 0
+  },
+  {
+    level: 9,
+    name: 'Garry Kasparov',
+    gender: 'Male',
+    elo: 2550,
+    title: '13th World Champion',
+    avatarId: 'kasparov',
+    description: 'Highest-rated player for 20 years. Heavy theoretical preparation, deep dynamism, and king hunts.',
+    skinTone: '#e7b592',
+    hairColor: '#2b2320',
+    shirtColor: '#f97316',
+    bgColor: '#281a13',
+    skillLevel: 20,
+    depth: 15,
+    movetime: 800,
+    blunderChance: 0
+  },
+  {
+    level: 10,
+    name: 'Magnus Carlsen',
+    gender: 'Male',
+    elo: 2750,
+    title: '5-Time World Champion',
+    avatarId: 'carlsen',
+    description: 'Peak rating 2882. Supreme intuitive technique, grindmaster of micro-advantages, tactical perfection.',
+    skinTone: '#f6cead',
+    hairColor: '#9c7343',
+    shirtColor: '#3b82f6',
+    bgColor: '#141d2d',
+    skillLevel: 20,
+    depth: 17,
+    movetime: 900,
+    blunderChance: 0
+  },
+  {
+    level: 11,
+    name: 'Stockfish Max',
+    gender: 'Neutral',
+    elo: 2850,
+    title: 'Neural Engine Master',
+    avatarId: 'stockfish',
+    description: 'Full-depth WebAssembly chess engine. Evaluates millions of nodes for unyielding accuracy.',
+    skinTone: '#94a3b8',
+    hairColor: '#475569',
+    shirtColor: '#fbbf24',
+    bgColor: '#201c10',
+    skillLevel: 20,
+    depth: 18,
+    movetime: 1000,
+    blunderChance: 0
+  }
+];
+
+export function getPersona(level) {
+  return BOT_PERSONAS.find((b) => b.level === Number(level)) || BOT_PERSONAS[0];
+}

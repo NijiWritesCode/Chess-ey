@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-canvas text-ivory font-sans;
+    overflow-x: hidden;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(22, 27, 34, 0.6);
+}
+::-webkit-scrollbar-thumb {
+  background: #30363d;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #484f58;
+}
+
+/* Responsive viewport-bounded chessboard container: never overflows vertical screen */
+.board-container {
+  width: min(94vw, calc(100dvh - 230px), 480px);
+  max-width: calc(100dvh - 230px);
+  max-height: calc(100dvh - 230px);
+  aspect-ratio: 1 / 1;
+  position: relative;
+  user-select: none;
+  touch-action: manipulation;
+}
+
+@media (min-width: 1024px) {
+  .board-container {
+    width: min(44vw, calc(100dvh - 230px), 560px);
+    max-width: calc(100dvh - 230px);
+    max-height: calc(100dvh - 230px);
+  }
+}
+
+@media (min-width: 1440px) {
+  .board-container {
+    width: min(46vw, calc(100dvh - 210px), 620px);
+    max-width: calc(100dvh - 210px);
+    max-height: calc(100dvh - 210px);
+  }
+}
