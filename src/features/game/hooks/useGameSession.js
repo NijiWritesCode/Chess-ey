@@ -1,7 +1,7 @@
 // Centralized React hook managing local game session lifecycle and interactions
 // Connects UI components to the pure gameReducer domain model.
 
-import { useReducer, useCallback, useMemo } from 'react';
+import { useReducer, useCallback, useMemo, useEffect, useRef } from 'react';
 import {
   createInitialGameState,
   gameReducer,
@@ -10,6 +10,7 @@ import {
 } from '../domain/gameReducer';
 import { getDisplayFen, isPlayerTurn, getLastMove, getCapturedPieces } from '../domain/gameState';
 import { isInCheck, isLegalMove, getLegalMoves } from '../domain/chessRules';
+import { historyStorage } from '../../history/services/historyStorage';
 
 export function useGameSession(initialOptions = {}) {
   const [state, dispatch] = useReducer(
@@ -17,6 +18,37 @@ export function useGameSession(initialOptions = {}) {
     { autoStart: true, ...initialOptions },
     createInitialGameState
   );
+
+  const savedGameIdRef = useRef(null);
+  const sessionGameIdRef = useRef(
+    initialOptions.id ||
+      (typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `game_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`)
+  );
+
+  useEffect(() => {
+    if (state.status === GAME_STATUS.COMPLETED && state.moves && state.moves.length > 0) {
+      const targetId = state.id || sessionGameIdRef.current;
+      if (savedGameIdRef.current !== targetId) {
+        savedGameIdRef.current = targetId;
+        const gameRecord = {
+          id: targetId,
+          gameMode: initialOptions.gameMode || 'offline',
+          timestamp: state.startedAt || Date.now(),
+          completedAt: state.endedAt || Date.now(),
+          players: state.players,
+          result: state.result,
+          initialFen: state.initialFen,
+          finalFen: state.fen,
+          moves: state.moves,
+          pgn: state.pgn,
+          timeControl: initialOptions.timeControl || null
+        };
+        historyStorage.saveGame(gameRecord).catch(() => {});
+      }
+    }
+  }, [state.status, state.id, state.result, state.moves, state.pgn, state.fen, initialOptions]);
 
   const displayFen = useMemo(() => getDisplayFen(state), [state]);
   const lastMove = useMemo(() => getLastMove(state), [state]);

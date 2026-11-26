@@ -32,6 +32,7 @@ export function App() {
           <Route path="/multiplayer" element={<MultiplayerPage />} />
           <Route path="/play/:roomId" element={<MultiplayerRoomPage />} />
           <Route path="/review" element={<GameReviewPage />} />
+          <Route path="/review/:gameId" element={<GameReviewPage />} />
           <Route path="/analysis" element={<AnalysisBoardPage />} />
           <Route path="/history" element={<RecentGamesPage />} />
           <Route path="*" element={<NotFoundPage />} />
