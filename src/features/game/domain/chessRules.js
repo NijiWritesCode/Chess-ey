@@ -260,3 +260,38 @@ export function exportPgn(movesList = [], headers = {}) {
     return '';
   }
 }
+
+/**
+ * Returns the piece object at a given square ({ type, color }) or null.
+ */
+export function getPieceAt(fen, square) {
+  try {
+    const chess = new Chess(fen);
+    return chess.get(square) || null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Locates the square of the king for a given color ('w' | 'b') or the current side to move.
+ */
+export function getKingSquare(fen, color = null) {
+  try {
+    const chess = new Chess(fen);
+    const targetColor = color || chess.turn();
+    const board = chess.board();
+    for (let r = 0; r < 8; r++) {
+      for (let c = 0; c < 8; c++) {
+        const piece = board[r][c];
+        if (piece && piece.type === 'k' && piece.color === targetColor) {
+          return `${String.fromCharCode(97 + c)}${8 - r}`;
+        }
+      }
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+

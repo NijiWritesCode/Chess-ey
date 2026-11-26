@@ -22,10 +22,11 @@ export const GAME_ACTIONS = {
  * Creates a clean, well-formed initial game state.
  */
 export function createInitialGameState(options = {}) {
-  const initialSeconds = options.timeControl?.initialSeconds ?? 600;
-  const incrementSeconds = options.timeControl?.increment ?? 0;
+  const initialSeconds = options.timeControl?.initialSeconds ?? (options.initialTimeMs !== undefined ? options.initialTimeMs / 1000 : 600);
+  const incrementSeconds = options.timeControl?.increment ?? (options.incrementMs !== undefined ? options.incrementMs / 1000 : 0);
   const initialMs = initialSeconds * 1000;
   const incrementMs = incrementSeconds * 1000;
+  const status = options.status || (options.autoStart ? GAME_STATUS.ACTIVE : GAME_STATUS.WAITING);
 
   return {
     id: options.id || null,
@@ -35,7 +36,7 @@ export function createInitialGameState(options = {}) {
     moves: [],
     currentPly: 0,
     turn: 'w',
-    status: GAME_STATUS.WAITING,
+    status,
     result: null,
     version: 1,
 

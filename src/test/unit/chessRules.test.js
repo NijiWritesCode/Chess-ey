@@ -176,4 +176,22 @@ describe('Phase 1.1: Chess Rules Domain Service', () => {
       expect(pgn).toContain('1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 *');
     });
   });
+
+  describe('Square Inspection and King Finding', () => {
+    it('retrieves piece at a given square', () => {
+      const { getPieceAt } = require('../../features/game/domain/chessRules');
+      expect(getPieceAt(STARTING_FEN, 'e1')).toEqual({ type: 'k', color: 'w' });
+      expect(getPieceAt(STARTING_FEN, 'e8')).toEqual({ type: 'k', color: 'b' });
+      expect(getPieceAt(STARTING_FEN, 'e4')).toBeNull();
+    });
+
+    it('locates the king square correctly', () => {
+      const { getKingSquare } = require('../../features/game/domain/chessRules');
+      expect(getKingSquare(STARTING_FEN, 'w')).toBe('e1');
+      expect(getKingSquare(STARTING_FEN, 'b')).toBe('e8');
+      // In a checked position
+      const checkedFen = 'rnb1kbnr/pppp1ppp/8/4p3/6Pq/5P2/PPPPP2P/RNBQKBNR w KQkq - 1 3';
+      expect(getKingSquare(checkedFen, 'w')).toBe('e1');
+    });
+  });
 });
