@@ -37,7 +37,11 @@ export function AnalysisBoardPage() {
   const location = useLocation();
   const initialPgn = location.state?.pgn || '';
 
-  const [settings] = useState(settingsManager.getAll());
+  const [settings, setSettings] = useState(settingsManager.getAll());
+
+  useEffect(() => {
+    return settingsManager.subscribe(setSettings);
+  }, []);
 
   // Board presentation & history state
   const [fen, setFen] = useState(STARTING_FEN);

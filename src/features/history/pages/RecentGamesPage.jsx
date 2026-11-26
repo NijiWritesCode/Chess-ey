@@ -162,14 +162,14 @@ export default function RecentGamesPage() {
 
             <div className="flex items-center gap-3 mt-6">
               <button
-                onClick={() => navigate('/play/computer')}
+                onClick={() => navigate('/computer')}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-semibold text-xs transition-colors shadow-lg shadow-cyan-500/20"
               >
                 <Bot className="w-4 h-4" />
                 Play Stockfish
               </button>
               <button
-                onClick={() => navigate('/play/friend')}
+                onClick={() => navigate('/multiplayer')}
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-xs transition-colors border border-slate-700"
               >
                 <Swords className="w-4 h-4" />

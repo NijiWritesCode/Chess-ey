@@ -241,6 +241,21 @@ export function SettingsModal({ isOpen, onClose }) {
                   className="w-full accent-accent-500"
                 />
               </div>
+
+              <label className="flex items-center justify-between pt-2 border-t border-canvas-border/60 cursor-pointer">
+                <div>
+                  <span className="text-xs font-medium text-ivory block">Automatic Review Prompt</span>
+                  <span className="text-[11px] text-ivory-muted block">
+                    Automatically prompt to review game when checkmate or resignation occurs.
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.autoReviewGame ?? true}
+                  onChange={(e) => handleUpdate({ autoReviewGame: e.target.checked })}
+                  className="w-4 h-4 rounded text-accent-500 focus:ring-accent-500 accent-accent-500"
+                />
+              </label>
             </div>
           </div>
 
@@ -278,6 +293,21 @@ export function SettingsModal({ isOpen, onClose }) {
                   type="checkbox"
                   checked={settings.showLegalMoves}
                   onChange={(e) => handleUpdate({ showLegalMoves: e.target.checked })}
+                  className="w-4 h-4 rounded text-accent-500 focus:ring-accent-500 accent-accent-500"
+                />
+              </label>
+
+              <label className="flex items-center justify-between p-3 rounded-xl bg-canvas-subtle border border-canvas-border hover:bg-canvas-hover cursor-pointer transition-colors">
+                <div>
+                  <span className="text-sm font-medium text-ivory block">Last Move Highlighting</span>
+                  <span className="text-xs text-ivory-muted block">
+                    Highlights origin and destination squares of the previous move.
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.highlightLastMove ?? true}
+                  onChange={(e) => handleUpdate({ highlightLastMove: e.target.checked })}
                   className="w-4 h-4 rounded text-accent-500 focus:ring-accent-500 accent-accent-500"
                 />
               </label>

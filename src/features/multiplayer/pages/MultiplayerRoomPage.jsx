@@ -361,7 +361,7 @@ export function MultiplayerRoomPage() {
               onMove={makeMove}
               themeId={settings.boardTheme}
               showLegalMoves={settings.showLegalMoves ?? true}
-              showHighlights={settings.showHighlights ?? true}
+              showHighlights={settings.highlightLastMove ?? true}
             />
 
             {/* Jump to live overlay if user is browsing past moves */}
