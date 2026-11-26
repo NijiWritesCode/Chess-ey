@@ -56,6 +56,8 @@ export function MultiplayerRoomPage() {
     isLive,
     isGameOver,
     result,
+    rematchOfferedBy,
+    rematchRoomId,
     clocks,
     players,
     makeMove,
@@ -63,8 +65,18 @@ export function MultiplayerRoomPage() {
     offerDraw,
     respondDraw,
     claimTimeout,
+    requestRematch,
+    declineRematch,
+    acceptRematch,
     navigatePly
   } = useMultiplayerRoom(roomId, { inviteToken });
+
+  // Auto-navigate to fresh rematch room when created (Phase 7.4)
+  useEffect(() => {
+    if (rematchRoomId) {
+      navigate(`/play/${rematchRoomId}`);
+    }
+  }, [rematchRoomId, navigate]);
 
   // Visual board orientation
   const [userFlipped, setUserFlipped] = useState(false);
@@ -388,6 +400,45 @@ export function MultiplayerRoomPage() {
           </div>
         )}
 
+        {/* Rematch Offer Received Banner (Phase 7.4) */}
+        {isGameOver && rematchOfferedBy === opponentColor && (
+          <div className="p-4 rounded-2xl bg-accent-500/20 border border-accent-500/40 text-ivory space-y-3 shadow-lg animate-fade-in">
+            <div className="flex items-center gap-2 text-accent-400 font-bold text-xs uppercase tracking-wider">
+              <RotateCcw className="w-4 h-4" />
+              <span>Rematch Challenge!</span>
+            </div>
+            <p className="text-xs text-ivory-muted">
+              {opponentName} requested a rematch with swapped pieces. Ready for round 2?
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={acceptRematch}
+                className="py-2.5 px-3 rounded-xl bg-accent-500 hover:bg-accent-400 text-canvas font-bold text-xs transition-all shadow-md"
+              >
+                Accept Rematch
+              </button>
+              <button
+                type="button"
+                onClick={declineRematch}
+                className="py-2.5 px-3 rounded-xl bg-canvas-subtle hover:bg-canvas-border text-ivory font-semibold text-xs border border-canvas-border transition-all"
+              >
+                Decline
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Rematch Offer Sent Waiting Banner (Phase 7.4) */}
+        {isGameOver && rematchOfferedBy === playerColor && (
+          <div className="p-3.5 rounded-xl bg-accent-500/10 border border-accent-500/30 text-xs text-ivory-muted flex items-center justify-between animate-pulse">
+            <div className="flex items-center gap-2">
+              <RotateCcw className="w-4 h-4 text-accent-400 animate-spin" />
+              <span className="text-accent-300 font-medium">Rematch requested. Waiting for opponent to accept...</span>
+            </div>
+          </div>
+        )}
+
         {/* Move History Table */}
         <div className="flex-1 min-h-[280px] max-h-[360px] bg-canvas-card border border-canvas-border rounded-2xl overflow-hidden shadow-md flex flex-col">
           <div className="px-4 py-2.5 border-b border-canvas-border/80 flex items-center justify-between text-xs font-bold text-ivory">
@@ -508,6 +559,7 @@ export function MultiplayerRoomPage() {
         playerColor={playerColor}
         whiteName={players.white.name}
         blackName={players.black.name}
+        onRematch={requestRematch}
         onStartReview={() => navigate(`/review/${roomId}`)}
         onNewGame={() => navigate('/multiplayer')}
         onClose={() => {}}

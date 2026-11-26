@@ -9,6 +9,7 @@ import { multiplayerApi } from '../services/multiplayerApi';
 import { getSeatRecoveryCredential } from '../services/seatRecovery';
 import { isInCheck, isLegalMove } from '../../game/domain/chessRules';
 import { reconstructGame } from '../../game/domain/moveHistory';
+import { historyStorage } from '../../history/services/historyStorage';
 import { soundEngine } from '../../../utils/sound';
 
 export function useMultiplayerRoom(roomId, options = {}) {
@@ -298,20 +299,91 @@ export function useMultiplayerRoom(roomId, options = {}) {
     };
   }, [roomId, playerColor, status]);
 
-  // 3. Local clock countdown during active play
+  // 3. Authoritative Clock Countdown (Phase 7.1 & 7.2)
+  // Calculates visible countdown using latest authoritative snapshot + actual elapsed time
+  // Prevents independent clock drift and automatically triggers timeout adjudication on flag fall.
   useEffect(() => {
     if (status !== 'active' || !room) return;
 
-    const interval = setInterval(() => {
+    const updateClocks = () => {
+      const now = Date.now();
+      const lastMoveTime = room.last_move_timestamp ? new Date(room.last_move_timestamp).getTime() : now;
+      const elapsed = Math.max(0, now - lastMoveTime);
+
       if (room.turn === 'w') {
-        setWhiteTimeMs((prev) => Math.max(0, prev - 100));
+        const whiteRemaining = Math.max(0, (room.white_time_ms ?? 600000) - elapsed);
+        setWhiteTimeMs(whiteRemaining);
+        setBlackTimeMs(room.black_time_ms ?? 600000);
+
+        // Flag fall: opponent (Black) can claim timeout
+        if (whiteRemaining === 0 && playerColor === 'b') {
+          multiplayerApi.claimTimeout(roomId).catch(() => {});
+        }
       } else if (room.turn === 'b') {
-        setBlackTimeMs((prev) => Math.max(0, prev - 100));
+        const blackRemaining = Math.max(0, (room.black_time_ms ?? 600000) - elapsed);
+        setBlackTimeMs(blackRemaining);
+        setWhiteTimeMs(room.white_time_ms ?? 600000);
+
+        // Flag fall: opponent (White) can claim timeout
+        if (blackRemaining === 0 && playerColor === 'w') {
+          multiplayerApi.claimTimeout(roomId).catch(() => {});
+        }
       }
-    }, 100);
+    };
+
+    updateClocks();
+    const interval = setInterval(updateClocks, 100);
 
     return () => clearInterval(interval);
-  }, [status, room?.turn]);
+  }, [
+    status,
+    room?.turn,
+    room?.version,
+    room?.last_move_timestamp,
+    room?.white_time_ms,
+    room?.black_time_ms,
+    playerColor,
+    roomId
+  ]);
+
+  // 4. Completed Game Persistence (Phase 7.5)
+  // Automatically persists completed matches to local history (IndexedDB/localStorage)
+  useEffect(() => {
+    if (status !== 'completed' || !room || moves.length === 0) return;
+
+    let pgnStr = '';
+    try {
+      const reconstructed = reconstructGame(moves);
+      pgnStr = reconstructed.pgn || '';
+    } catch (e) {}
+
+    historyStorage
+      .saveGame({
+        id: roomId,
+        gameMode: 'multiplayer',
+        timestamp: Date.now(),
+        white: { name: room.white_name || 'White', isBot: false },
+        black: { name: room.black_name || 'Black', isBot: false },
+        result:
+          room.winner === 'white'
+            ? '1-0'
+            : room.winner === 'black'
+            ? '0-1'
+            : room.winner === 'draw'
+            ? '1/2-1/2'
+            : '*',
+        reason: room.termination_reason || 'completed',
+        winner: room.winner || 'draw',
+        fen: room.fen,
+        moves,
+        pgn: pgnStr,
+        timeControl: {
+          initialSeconds: (room.time_control_initial_ms || 600000) / 1000,
+          increment: (room.time_control_increment_ms || 0) / 1000
+        }
+      })
+      .catch((e) => console.warn('[useMultiplayerRoom] History persistence warning:', e));
+  }, [status, roomId, room?.winner, room?.termination_reason, moves]);
 
   // Derived Board State
   const isLive = currentPly === moves.length;
@@ -488,6 +560,49 @@ export function useMultiplayerRoom(roomId, options = {}) {
     }
   }, [roomId]);
 
+  // Rematch Actions (Phase 7.4)
+  const requestRematch = useCallback(async () => {
+    if (!roomId) return;
+    try {
+      const res = await multiplayerApi.requestRematch(roomId);
+      if (res?.success) {
+        setRoom((prev) => ({ ...prev, rematch_offered_by: playerColor }));
+      }
+      return res;
+    } catch (e) {
+      console.error('[useMultiplayerRoom] Request rematch error:', e);
+      throw e;
+    }
+  }, [roomId, playerColor]);
+
+  const declineRematch = useCallback(async () => {
+    if (!roomId) return;
+    try {
+      const res = await multiplayerApi.declineRematch(roomId);
+      if (res?.success) {
+        setRoom((prev) => ({ ...prev, rematch_offered_by: null }));
+      }
+      return res;
+    } catch (e) {
+      console.error('[useMultiplayerRoom] Decline rematch error:', e);
+      throw e;
+    }
+  }, [roomId]);
+
+  const acceptRematch = useCallback(async () => {
+    if (!roomId) return;
+    try {
+      const res = await multiplayerApi.acceptRematch(roomId);
+      if (res?.newRoomId) {
+        setRoom((prev) => ({ ...prev, rematch_room_id: res.newRoomId }));
+      }
+      return res;
+    } catch (e) {
+      console.error('[useMultiplayerRoom] Accept rematch error:', e);
+      throw e;
+    }
+  }, [roomId]);
+
   return {
     room,
     roomId,
@@ -504,6 +619,8 @@ export function useMultiplayerRoom(roomId, options = {}) {
     isLive,
     isGameOver,
     result,
+    rematchOfferedBy: room?.rematch_offered_by,
+    rematchRoomId: room?.rematch_room_id,
     clocks: {
       whiteMs: whiteTimeMs,
       blackMs: blackTimeMs
@@ -519,6 +636,9 @@ export function useMultiplayerRoom(roomId, options = {}) {
     offerDraw,
     respondDraw,
     claimTimeout,
+    requestRematch,
+    declineRematch,
+    acceptRematch,
     navigatePly: setCurrentPly
   };
 }

@@ -6,6 +6,9 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Chess } from 'chess.js';
 import { historyStorage } from '../services/historyStorage';
 import { analyzeFullGame } from '../services/reviewService';
+import { multiplayerApi } from '../../multiplayer/services/multiplayerApi';
+import { isSupabaseConfigured } from '../../../lib/supabase/client';
+import { reconstructGame } from '../../game/domain/moveHistory';
 import Chessboard from '../../game/components/Chessboard';
 import MoveList from '../../game/components/MoveList';
 import EvaluationBar from '../../analysis/components/EvaluationBar';
@@ -55,7 +58,51 @@ export default function GameReviewPage() {
 
       setIsLoading(true);
       try {
-        const storedGame = await historyStorage.getGameById(gameId);
+        let storedGame = await historyStorage.getGameById(gameId);
+
+        // Fallback: If not found in local storage, fetch authoritative room from Supabase
+        if (!storedGame && isSupabaseConfigured) {
+          try {
+            const roomData = await multiplayerApi.getRoomState(gameId);
+            if (roomData) {
+              const rawMoves = await multiplayerApi.getRoomMoves(gameId);
+              const formattedMoves = (rawMoves || []).map((m) => ({
+                ply: m.ply,
+                from: m.from_sq,
+                to: m.to_sq,
+                promotion: m.promotion,
+                san: m.san,
+                fen: m.fen_after,
+                turn: m.player_seat
+              }));
+              const reconstructed = reconstructGame(formattedMoves);
+              storedGame = {
+                id: gameId,
+                gameMode: 'multiplayer',
+                timestamp: new Date(roomData.created_at).getTime(),
+                white: { name: roomData.white_name || 'White', isBot: false },
+                black: { name: roomData.black_name || 'Black', isBot: false },
+                result:
+                  roomData.winner === 'white'
+                    ? '1-0'
+                    : roomData.winner === 'black'
+                    ? '0-1'
+                    : roomData.winner === 'draw'
+                    ? '1/2-1/2'
+                    : '*',
+                reason: roomData.termination_reason || 'completed',
+                winner: roomData.winner || 'draw',
+                fen: roomData.fen,
+                moves: formattedMoves,
+                pgn: reconstructed.pgn || ''
+              };
+              await historyStorage.saveGame(storedGame);
+            }
+          } catch (e) {
+            console.warn('[GameReviewPage] Remote match lookup fallback error:', e);
+          }
+        }
+
         if (!storedGame) {
           setIsLoading(false);
           return;

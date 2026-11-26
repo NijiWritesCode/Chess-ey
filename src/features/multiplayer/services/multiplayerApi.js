@@ -330,6 +330,74 @@ export const multiplayerApi = {
   },
 
   /**
+   * Requests a rematch with the opponent on a completed match.
+   */
+  async requestRematch(roomId) {
+    if (!isSupabaseConfigured) throw new Error('Supabase not configured.');
+
+    const { data, error } = await supabase.rpc('request_rematch', {
+      p_room_id: roomId
+    });
+
+    if (error || !data?.success) {
+      throw new Error(data?.error || error?.message || 'Failed to request rematch.');
+    }
+
+    return data;
+  },
+
+  /**
+   * Declines a pending rematch request.
+   */
+  async declineRematch(roomId) {
+    if (!isSupabaseConfigured) throw new Error('Supabase not configured.');
+
+    const { data, error } = await supabase.rpc('decline_rematch', {
+      p_room_id: roomId
+    });
+
+    if (error || !data?.success) {
+      throw new Error(data?.error || error?.message || 'Failed to decline rematch.');
+    }
+
+    return data;
+  },
+
+  /**
+   * Accepts an opponent's rematch request.
+   * Atomically generates a new room with swapped colors and fresh clocks.
+   */
+  async acceptRematch(roomId) {
+    if (!isSupabaseConfigured) throw new Error('Supabase not configured.');
+
+    const inviteToken = generateSecureToken();
+    const tokenHash = await hashToken(inviteToken);
+
+    const recoveryCredential = generateSecureToken();
+    const recoveryHash = await hashToken(recoveryCredential);
+
+    const { data, error } = await supabase.rpc('accept_rematch', {
+      p_room_id: roomId,
+      p_invite_token_hash: tokenHash,
+      p_recovery_token_hash: recoveryHash
+    });
+
+    if (error || !data?.success) {
+      throw new Error(data?.error || error?.message || 'Failed to accept rematch.');
+    }
+
+    if (data.newRoomId) {
+      storeSeatRecoveryCredential(data.newRoomId, recoveryCredential);
+    }
+
+    return {
+      ...data,
+      inviteToken,
+      recoveryCredential
+    };
+  },
+
+  /**
    * Retrieves the current room row.
    */
   async getRoomState(roomId) {
