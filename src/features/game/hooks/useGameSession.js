@@ -91,6 +91,19 @@ export function useGameSession(initialOptions = {}) {
     });
   }, []);
 
+  const resetGame = useCallback((options = {}) => {
+    savedGameIdRef.current = null;
+    sessionGameIdRef.current =
+      options.id ||
+      (typeof crypto !== 'undefined' && crypto.randomUUID
+        ? crypto.randomUUID()
+        : `game_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`);
+    dispatch({
+      type: GAME_ACTIONS.RESET_GAME,
+      payload: options
+    });
+  }, []);
+
   const resign = useCallback((color) => {
     dispatch({
       type: GAME_ACTIONS.RESIGN,
@@ -132,31 +145,52 @@ export function useGameSession(initialOptions = {}) {
     });
   }, []);
 
-  return {
-    state,
-    displayFen,
-    currentPly: state.currentPly,
-    turn: state.turn,
-    status: state.status,
-    moves: state.moves,
-    lastMove,
-    isCheck,
-    isLive,
-    isGameOver,
-    result: state.result,
-    clocks: state.clocks,
-    capturedPieces,
-    players: state.players,
-    version: state.version,
+  return useMemo(
+    () => ({
+      state,
+      displayFen,
+      currentPly: state.currentPly,
+      turn: state.turn,
+      status: state.status,
+      moves: state.moves,
+      lastMove,
+      isCheck,
+      isLive,
+      isGameOver,
+      result: state.result,
+      clocks: state.clocks,
+      capturedPieces,
+      players: state.players,
+      version: state.version,
 
-    // Actions
-    makeMove,
-    startGame,
-    resign,
-    timeout,
-    agreeDraw,
-    undoMove,
-    navigatePly,
-    setTime
-  };
+      // Actions
+      makeMove,
+      startGame,
+      resetGame,
+      resign,
+      timeout,
+      agreeDraw,
+      undoMove,
+      navigatePly,
+      setTime
+    }),
+    [
+      state,
+      displayFen,
+      lastMove,
+      isCheck,
+      isLive,
+      isGameOver,
+      capturedPieces,
+      makeMove,
+      startGame,
+      resetGame,
+      resign,
+      timeout,
+      agreeDraw,
+      undoMove,
+      navigatePly,
+      setTime
+    ]
+  );
 }

@@ -59,6 +59,8 @@ export function ComputerGamePage() {
   // Generation counter to protect async bot callbacks against stale game races
   const gameGenerationRef = useRef(0);
   const savedGameIdRef = useRef(null);
+  const botTimerRef = useRef(null);
+  const isEngineThinkingRef = useRef(false);
 
   // Authoritative Game Session Hook from Phase 1
   const session = useGameSession({
@@ -67,6 +69,9 @@ export function ComputerGamePage() {
     playerWhite: playerColor === 'w' ? 'You' : activePersona.name,
     playerBlack: playerColor === 'b' ? 'You' : activePersona.name
   });
+
+  const sessionRef = useRef(session);
+  sessionRef.current = session;
 
   // Bot thinking state & error
   const [isEngineThinking, setIsEngineThinking] = useState(false);
@@ -107,11 +112,11 @@ export function ComputerGamePage() {
     }
 
     const interval = setInterval(() => {
-      const turn = session.turn;
+      const turn = sessionRef.current.turn;
       if (turn === 'w') {
         setWhiteTimeMs((prev) => {
           if (prev <= 100) {
-            session.timeout('w');
+            sessionRef.current.timeout('w');
             return 0;
           }
           return prev - 100;
@@ -119,7 +124,7 @@ export function ComputerGamePage() {
       } else {
         setBlackTimeMs((prev) => {
           if (prev <= 100) {
-            session.timeout('b');
+            sessionRef.current.timeout('b');
             return 0;
           }
           return prev - 100;
@@ -128,12 +133,13 @@ export function ComputerGamePage() {
     }, 100);
 
     return () => clearInterval(interval);
-  }, [session.status, session.turn, session.isGameOver, selectedTimeControl, session]);
+  }, [session.status, session.turn, session.isGameOver, selectedTimeControl.id]);
 
   // Persist completed game to local IndexedDB store
   const persistGame = useCallback(
     async (result) => {
-      const pgn = session.state.pgn;
+      const currentSession = sessionRef.current;
+      const pgn = currentSession.state.pgn;
       const gameId = `game_${Date.now()}`;
       savedGameIdRef.current = gameId;
       const gameRecord = {
@@ -147,11 +153,11 @@ export function ComputerGamePage() {
           black: { name: playerColor === 'b' ? 'You' : activePersona.name, isBot: playerColor !== 'b' }
         },
         result,
-        movesCount: session.moves.length,
+        movesCount: currentSession.moves.length,
         opening: currentOpening?.name || 'Standard Game',
         eco: currentOpening?.eco || '',
         pgn,
-        moves: [...session.moves]
+        moves: [...currentSession.moves]
       };
       try {
         await gameStore.saveGame(gameRecord);
@@ -159,7 +165,7 @@ export function ComputerGamePage() {
         console.warn('Could not save game locally', e);
       }
     },
-    [session.state.pgn, session.moves, activePersona, playerColor, currentOpening]
+    [activePersona, playerColor, currentOpening]
   );
 
   // Monitor game over events and handle game-end effects
@@ -170,15 +176,37 @@ export function ComputerGamePage() {
     }
   }, [session.isGameOver, session.result, persistGame]);
 
+  // Reactive Sound Effects & Opening Recognition on any move
+  const prevMovesCountRef = useRef(session.moves.length);
+  useEffect(() => {
+    if (session.moves.length > prevMovesCountRef.current) {
+      const lastMoveRecord = session.moves[session.moves.length - 1];
+      if (session.isCheck) soundEngine.playCheck();
+      else if (lastMoveRecord?.isCastle) soundEngine.playCastle();
+      else if (lastMoveRecord?.captured) soundEngine.playCapture();
+      else soundEngine.playMove();
+
+      try {
+        const allSans = session.moves.map((m) => m.san);
+        const opening = identifyOpening(allSans, session.state.fen);
+        setCurrentOpening(opening);
+      } catch (e) {}
+    }
+    prevMovesCountRef.current = session.moves.length;
+  }, [session.moves, session.isCheck, session.state.fen]);
+
   // Bot move trigger
   const triggerComputerMove = useCallback(async () => {
-    if (session.status !== GAME_STATUS.ACTIVE || session.isGameOver) return;
+    const currentSession = sessionRef.current;
+    if (currentSession.status !== GAME_STATUS.ACTIVE || currentSession.isGameOver) return;
+    if (isEngineThinkingRef.current) return;
 
     const currentGen = gameGenerationRef.current;
+    isEngineThinkingRef.current = true;
     setIsEngineThinking(true);
     setEngineError(null);
 
-    const fenBefore = session.state.fen;
+    const fenBefore = currentSession.state.fen;
 
     try {
       const result = await computeBotMove(fenBefore, activeBotConfig, {
@@ -187,27 +215,12 @@ export function ComputerGamePage() {
       });
 
       if (currentGen !== gameGenerationRef.current || !result || !result.move) {
-        setIsEngineThinking(false);
         return;
       }
 
       // Execute bot move in authoritative game session
-      const moveSuccess = session.makeMove(result.move);
+      const moveSuccess = sessionRef.current.makeMove(result.move);
       if (moveSuccess) {
-        // Sound effects
-        const lastMoveRecord = session.moves[session.moves.length - 1];
-        if (session.isCheck) soundEngine.playCheck();
-        else if (lastMoveRecord?.isCastle) soundEngine.playCastle();
-        else if (lastMoveRecord?.captured) soundEngine.playCapture();
-        else soundEngine.playMove();
-
-        // Opening recognition
-        try {
-          const allSans = session.moves.map((m) => m.san);
-          const opening = identifyOpening(allSans, session.state.fen);
-          setCurrentOpening(opening);
-        } catch (e) {}
-
         if (result.evaluation) {
           setCurrentEval(result.evaluation);
         }
@@ -219,10 +232,11 @@ export function ComputerGamePage() {
       setEngineError('Stockfish calculation encountered an issue.');
     } finally {
       if (currentGen === gameGenerationRef.current) {
+        isEngineThinkingRef.current = false;
         setIsEngineThinking(false);
       }
     }
-  }, [session, activeBotConfig]);
+  }, [activeBotConfig]);
 
   // Check if it's the computer's turn to play
   useEffect(() => {
@@ -231,13 +245,31 @@ export function ComputerGamePage() {
       !session.isGameOver &&
       session.turn !== playerColor;
 
-    if (isBotTurn && !isEngineThinking) {
-      const timer = setTimeout(() => {
+    if (!isBotTurn) {
+      if (botTimerRef.current) {
+        clearTimeout(botTimerRef.current);
+        botTimerRef.current = null;
+      }
+      return;
+    }
+
+    if (!isEngineThinking && !botTimerRef.current) {
+      botTimerRef.current = setTimeout(() => {
+        botTimerRef.current = null;
         triggerComputerMove();
       }, 150);
-      return () => clearTimeout(timer);
     }
   }, [session.status, session.turn, session.isGameOver, playerColor, isEngineThinking, triggerComputerMove]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (botTimerRef.current) {
+        clearTimeout(botTimerRef.current);
+      }
+      playEngine.stopSearch();
+    };
+  }, []);
 
   // Player move handler
   const handlePlayerMove = useCallback(
@@ -251,27 +283,9 @@ export function ComputerGamePage() {
         return false;
       }
 
-      const success = session.makeMove({ from, to, promotion });
-      if (success) {
-        // Sound effects
-        const lastMoveRecord = session.moves[session.moves.length - 1];
-        if (session.isCheck) soundEngine.playCheck();
-        else if (lastMoveRecord?.isCastle) soundEngine.playCastle();
-        else if (lastMoveRecord?.captured) soundEngine.playCapture();
-        else soundEngine.playMove();
-
-        // Opening recognition
-        try {
-          const allSans = [...session.moves.map((m) => m.san)];
-          const opening = identifyOpening(allSans, session.state.fen);
-          setCurrentOpening(opening);
-        } catch (e) {}
-
-        return true;
-      }
-      return false;
+      return session.makeMove({ from, to, promotion });
     },
-    [session, isEngineThinking, playerColor]
+    [session.status, session.isGameOver, isEngineThinking, session.turn, playerColor, session.makeMove]
   );
 
   // Undo move (reverts both player & bot turn)
@@ -279,7 +293,12 @@ export function ComputerGamePage() {
     if (session.moves.length === 0) return;
 
     gameGenerationRef.current += 1;
+    if (botTimerRef.current) {
+      clearTimeout(botTimerRef.current);
+      botTimerRef.current = null;
+    }
     playEngine.stopSearch();
+    isEngineThinkingRef.current = false;
     setIsEngineThinking(false);
 
     // If it's player's turn, undo 2 plies (bot's move + player's move)
@@ -289,23 +308,83 @@ export function ComputerGamePage() {
     } else {
       session.undoMove(1);
     }
-  }, [session, playerColor]);
+  }, [session.moves.length, session.turn, playerColor, session.undoMove]);
 
   // Resign active match
   const handleResign = useCallback(() => {
     if (session.isGameOver) return;
     gameGenerationRef.current += 1;
+    if (botTimerRef.current) {
+      clearTimeout(botTimerRef.current);
+      botTimerRef.current = null;
+    }
     playEngine.stopSearch();
+    isEngineThinkingRef.current = false;
     setIsEngineThinking(false);
     session.resign(playerColor);
-  }, [session, playerColor]);
+  }, [session.isGameOver, playerColor, session.resign]);
 
   // Restart match with fresh state
-  const handleRestart = useCallback(() => {
+  const handleRestart = useCallback(
+    (forcedColor, newTimeControl) => {
+      gameGenerationRef.current += 1;
+      if (botTimerRef.current) {
+        clearTimeout(botTimerRef.current);
+        botTimerRef.current = null;
+      }
+      playEngine.stopSearch();
+      isEngineThinkingRef.current = false;
+      setIsEngineThinking(false);
+
+      const tc = newTimeControl || selectedTimeControl;
+      const newColor =
+        forcedColor ||
+        (colorPreference === 'random'
+          ? Math.random() < 0.5
+            ? 'w'
+            : 'b'
+          : colorPreference === 'white'
+          ? 'w'
+          : 'b');
+
+      setPlayerColor(newColor);
+      setBoardOrientation(newColor === 'b' ? 'black' : 'white');
+      setWhiteTimeMs(tc.initialSeconds * 1000);
+      setBlackTimeMs(tc.initialSeconds * 1000);
+      setCurrentOpening(null);
+      setSelectedMoveForExplanation(null);
+      setEngineError(null);
+
+      session.resetGame({
+        initialTimeMs: tc.initialSeconds * 1000,
+        incrementMs: tc.increment * 1000,
+        whitePlayer: {
+          name: newColor === 'w' ? 'You' : activePersona.name,
+          type: newColor === 'w' ? 'human' : 'bot'
+        },
+        blackPlayer: {
+          name: newColor === 'b' ? 'You' : activePersona.name,
+          type: newColor === 'b' ? 'human' : 'bot'
+        }
+      });
+    },
+    [colorPreference, selectedTimeControl, activePersona, session.resetGame]
+  );
+
+  // Select persona from picker
+  const handleSelectBot = (level) => {
+    setBotLevel(level);
+    setShowBotPicker(false);
     gameGenerationRef.current += 1;
+    if (botTimerRef.current) {
+      clearTimeout(botTimerRef.current);
+      botTimerRef.current = null;
+    }
     playEngine.stopSearch();
+    isEngineThinkingRef.current = false;
     setIsEngineThinking(false);
 
+    const persona = getPersona(level);
     const newColor =
       colorPreference === 'random'
         ? Math.random() < 0.5
@@ -321,15 +400,20 @@ export function ComputerGamePage() {
     setBlackTimeMs(selectedTimeControl.initialSeconds * 1000);
     setCurrentOpening(null);
     setSelectedMoveForExplanation(null);
+    setEngineError(null);
 
-    session.startGame();
-  }, [colorPreference, selectedTimeControl, session]);
-
-  // Select persona from picker
-  const handleSelectBot = (level) => {
-    setBotLevel(level);
-    setShowBotPicker(false);
-    handleRestart();
+    session.resetGame({
+      initialTimeMs: selectedTimeControl.initialSeconds * 1000,
+      incrementMs: selectedTimeControl.increment * 1000,
+      whitePlayer: {
+        name: newColor === 'w' ? 'You' : persona.name,
+        type: newColor === 'w' ? 'human' : 'bot'
+      },
+      blackPlayer: {
+        name: newColor === 'b' ? 'You' : persona.name,
+        type: newColor === 'b' ? 'human' : 'bot'
+      }
+    });
   };
 
   // Launch full Game Review
@@ -424,8 +508,7 @@ export function ComputerGamePage() {
             <button
               onClick={() => {
                 setColorPreference('white');
-                setPlayerColor('w');
-                setBoardOrientation('white');
+                handleRestart('w');
               }}
               className={`p-1.5 rounded text-xs font-semibold transition-colors ${
                 playerColor === 'w' && colorPreference !== 'random'
@@ -439,9 +522,7 @@ export function ComputerGamePage() {
             <button
               onClick={() => {
                 setColorPreference('random');
-                const rnd = Math.random() < 0.5 ? 'w' : 'b';
-                setPlayerColor(rnd);
-                setBoardOrientation(rnd === 'b' ? 'black' : 'white');
+                handleRestart();
               }}
               className={`p-1.5 rounded text-xs font-semibold transition-colors ${
                 colorPreference === 'random'
@@ -455,8 +536,7 @@ export function ComputerGamePage() {
             <button
               onClick={() => {
                 setColorPreference('black');
-                setPlayerColor('b');
-                setBoardOrientation('black');
+                handleRestart('b');
               }}
               className={`p-1.5 rounded text-xs font-semibold transition-colors ${
                 playerColor === 'b' && colorPreference !== 'random'
@@ -475,8 +555,7 @@ export function ComputerGamePage() {
             onChange={(e) => {
               const tc = TIME_CONTROLS.find((t) => t.id === e.target.value) || TIME_CONTROLS[0];
               setSelectedTimeControl(tc);
-              setWhiteTimeMs(tc.initialSeconds * 1000);
-              setBlackTimeMs(tc.initialSeconds * 1000);
+              handleRestart(null, tc);
             }}
             className="bg-canvas-subtle border border-canvas-border text-ivory text-xs rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent-500 font-medium"
           >
@@ -489,7 +568,7 @@ export function ComputerGamePage() {
 
           {/* Restart button */}
           <button
-            onClick={handleRestart}
+            onClick={() => handleRestart()}
             className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-canvas-subtle hover:bg-canvas-hover border border-canvas-border text-xs font-semibold text-ivory transition-colors"
             title="Start New Game"
           >

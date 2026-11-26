@@ -9,6 +9,7 @@ export { GAME_STATUS, TERMINATION_REASONS, WINNERS };
 
 export const GAME_ACTIONS = {
   START_GAME: 'START_GAME',
+  RESET_GAME: 'RESET_GAME',
   MAKE_MOVE: 'MAKE_MOVE',
   SET_TIME: 'SET_TIME',
   RESIGN: 'RESIGN',
@@ -86,6 +87,19 @@ export function gameReducer(state, action) {
           lastTurnTimestamp: now
         }
       };
+    }
+
+    case GAME_ACTIONS.RESET_GAME: {
+      return createInitialGameState({
+        initialFen: action.payload?.initialFen || STARTING_FEN,
+        timeControl: action.payload?.timeControl,
+        initialTimeMs: action.payload?.initialTimeMs,
+        incrementMs: action.payload?.incrementMs,
+        whitePlayer: action.payload?.whitePlayer || state.players?.white,
+        blackPlayer: action.payload?.blackPlayer || state.players?.black,
+        autoStart: action.payload?.autoStart ?? true,
+        id: action.payload?.id
+      });
     }
 
     case GAME_ACTIONS.MAKE_MOVE: {
