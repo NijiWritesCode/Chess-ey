@@ -544,11 +544,15 @@ export function classifyMove({
 export function calculateAccuracy(movesList = []) {
   if (!movesList || movesList.length === 0) return 100;
 
-  const evaluatedMoves = movesList.filter((m) => !m.isBook && m.classification?.id !== 'forced');
+  const evaluatedMoves = movesList.filter((m) => m.classification?.id !== 'forced');
   if (evaluatedMoves.length === 0) return 100;
 
   let totalAcc = 0;
   for (const m of evaluatedMoves) {
+    if (m.isBook) {
+      totalAcc += 100;
+      continue;
+    }
     let winLoss = m.winChanceLoss;
     if (winLoss === undefined || winLoss === null) {
       const cpL = m.cpLoss || 0;

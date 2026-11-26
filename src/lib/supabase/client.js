@@ -75,6 +75,11 @@ export async function ensureAnonymousAuth() {
     return data.user;
   } catch (err) {
     console.warn('[Supabase Auth] Anonymous auth initialization warning:', err.message);
+    if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
+      throw new Error(
+        `Failed to reach Supabase project (${supabaseProjectRef || 'remote'}). The project at ${supabaseUrl} is inactive, paused, or unreachable. Please unpause it at https://supabase.com or play in Local Dual-Tab mode.`
+      );
+    }
     throw err;
   }
 }

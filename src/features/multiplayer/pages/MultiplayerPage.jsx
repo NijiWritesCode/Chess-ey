@@ -20,6 +20,7 @@ import { TIME_CONTROLS } from '../../../services/storage/settingsStore';
 export function MultiplayerPage() {
   const navigate = useNavigate();
 
+  const [matchMode, setMatchMode] = useState('cloud'); // 'cloud' | 'local'
   const [creatorColor, setCreatorColor] = useState('random'); // 'white' | 'black' | 'random'
   const [selectedTimeControl, setSelectedTimeControl] = useState(TIME_CONTROLS[0]);
   const [playerName, setPlayerName] = useState(() => `Player ${Math.floor(100 + Math.random() * 900)}`);
@@ -42,9 +43,15 @@ export function MultiplayerPage() {
   }, []);
 
   const handleCreateRoom = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
+
+    if (matchMode === 'local') {
+      handleCreateLocalRoom();
+      return;
+    }
+
     if (!isSupabaseConfigured) {
-      setErrorMsg('Supabase is not configured yet. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable multiplayer.');
+      setErrorMsg('Supabase is not configured yet. Configure VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to enable cloud multiplayer, or select Local Dual-Tab mode below.');
       return;
     }
 
@@ -61,7 +68,37 @@ export function MultiplayerPage() {
       setCreatedRoomInfo(result);
     } catch (err) {
       console.error('Room creation failure:', err);
-      setErrorMsg(err.message || 'Failed to create room.');
+      const isNetworkOrFetchError =
+        err?.message?.includes('Failed to fetch') ||
+        err?.message?.includes('NetworkError') ||
+        err?.message?.includes('Failed to reach') ||
+        err?.name === 'TypeError';
+
+      if (isNetworkOrFetchError) {
+        setErrorMsg(
+          'Could not connect to the remote Supabase database (the project at xxmurbydocawczcqopvi.supabase.co is inactive, paused, or unreachable). You can start an instant Local Dual-Tab match right now to test and play across two browser tabs!'
+        );
+      } else {
+        setErrorMsg(err.message || 'Failed to create room.');
+      }
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  const handleCreateLocalRoom = (e) => {
+    if (e) e.preventDefault();
+    setIsCreating(true);
+    setErrorMsg(null);
+    try {
+      const result = multiplayerApi.createLocalRoom({
+        creatorColor,
+        timeControl: selectedTimeControl,
+        playerName: playerName.trim() || 'Player'
+      });
+      setCreatedRoomInfo(result);
+    } catch (err) {
+      setErrorMsg(err.message || 'Failed to create local room.');
     } finally {
       setIsCreating(false);
     }
@@ -134,6 +171,50 @@ export function MultiplayerPage() {
       {!createdRoomInfo ? (
         <div className="p-6 sm:p-8 rounded-3xl bg-canvas-card border border-canvas-border shadow-2xl space-y-6">
           <form onSubmit={handleCreateRoom} className="space-y-6">
+            {/* Multiplayer Mode Selection */}
+            <div>
+              <label className="block text-xs font-semibold text-ivory-muted uppercase tracking-wider mb-2">
+                Multiplayer Mode
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setMatchMode('cloud')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col gap-1 ${
+                    matchMode === 'cloud'
+                      ? 'bg-accent-500/15 border-accent-500 text-ivory ring-2 ring-accent-500/30 shadow-md'
+                      : 'bg-canvas-subtle/50 border-canvas-border text-ivory-muted hover:bg-canvas-subtle hover:text-ivory'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-xs font-bold text-ivory">
+                    <Users className="w-3.5 h-3.5 text-accent-400" />
+                    <span>Cloud Online</span>
+                  </div>
+                  <span className="text-[11px] text-ivory-faint leading-tight">
+                    Play across different devices via Supabase database
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMatchMode('local')}
+                  className={`p-3.5 rounded-2xl border text-left transition-all flex flex-col gap-1 ${
+                    matchMode === 'local'
+                      ? 'bg-accent-500/15 border-accent-500 text-ivory ring-2 ring-accent-500/30 shadow-md'
+                      : 'bg-canvas-subtle/50 border-canvas-border text-ivory-muted hover:bg-canvas-subtle hover:text-ivory'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 text-xs font-bold text-ivory">
+                    <Sparkles className="w-3.5 h-3.5 text-accent-400" />
+                    <span>Local Dual-Tab</span>
+                  </div>
+                  <span className="text-[11px] text-ivory-faint leading-tight">
+                    Instant play between 2 tabs (no backend / offline)
+                  </span>
+                </button>
+              </div>
+            </div>
+
             {/* Player Name */}
             <div>
               <label className="block text-xs font-semibold text-ivory-muted uppercase tracking-wider mb-2">
@@ -215,8 +296,19 @@ export function MultiplayerPage() {
             </div>
 
             {errorMsg && (
-              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs sm:text-sm">
-                {errorMsg}
+              <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-xs sm:text-sm space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="w-4 h-4 text-red-400 shrink-0 mt-0.5" />
+                  <p className="leading-relaxed">{errorMsg}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCreateLocalRoom}
+                  className="w-full sm:w-auto py-2.5 px-4 rounded-xl bg-accent-500 hover:bg-accent-400 text-canvas font-bold text-xs transition-all shadow-md flex items-center justify-center gap-2"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>Launch Instant Local Dual-Tab Match</span>
+                </button>
               </div>
             )}
 
@@ -238,6 +330,18 @@ export function MultiplayerPage() {
                 </>
               )}
             </button>
+
+            {matchMode === 'cloud' && (
+              <div className="text-center pt-1">
+                <button
+                  type="button"
+                  onClick={handleCreateLocalRoom}
+                  className="text-xs text-ivory-muted hover:text-accent-400 transition-colors underline underline-offset-4"
+                >
+                  Or play a Local Dual-Tab match (instant link, no backend needed) &rarr;
+                </button>
+              </div>
+            )}
           </form>
         </div>
       ) : (
@@ -251,6 +355,11 @@ export function MultiplayerPage() {
             <p className="text-xs sm:text-sm text-ivory-muted max-w-md mx-auto">
               Share this invitation link with your opponent. The game will automatically start the moment they join.
             </p>
+            {createdRoomInfo.roomId?.startsWith('local_') && (
+              <div className="p-3 rounded-xl bg-accent-500/10 border border-accent-500/20 text-accent-300 text-xs text-center max-w-md mx-auto">
+                💡 <strong>Local Dual-Tab Room:</strong> Open the link in another browser tab or private window to play both sides in real time!
+              </div>
+            )}
           </div>
 
           {/* Share Link Field */}

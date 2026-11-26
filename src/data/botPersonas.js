@@ -33,9 +33,10 @@ export const BOT_PERSONAS = [
     shirtColor: '#f97316',
     bgColor: '#241b17',
     skillLevel: 0,
-    depth: 1,
-    movetime: 150,
-    blunderChance: 0.70
+    depth: 2,
+    movetime: 200,
+    blunderChance: 0.35,
+    maxBookPlies: 2
   },
   {
     level: 2,
@@ -49,10 +50,11 @@ export const BOT_PERSONAS = [
     hairColor: '#2b2320',
     shirtColor: '#38bdf8',
     bgColor: '#14202c',
-    skillLevel: 0,
-    depth: 1,
-    movetime: 200,
-    blunderChance: 0.50
+    skillLevel: 1,
+    depth: 3,
+    movetime: 250,
+    blunderChance: 0.20,
+    maxBookPlies: 4
   },
   {
     level: 3,
@@ -66,10 +68,11 @@ export const BOT_PERSONAS = [
     hairColor: '#a8422b',
     shirtColor: '#f59e0b',
     bgColor: '#261f18',
-    skillLevel: 2,
-    depth: 2,
-    movetime: 250,
-    blunderChance: 0.35
+    skillLevel: 3,
+    depth: 5,
+    movetime: 350,
+    blunderChance: 0.10,
+    maxBookPlies: 8
   },
   {
     level: 4,
@@ -83,10 +86,11 @@ export const BOT_PERSONAS = [
     hairColor: '#261b17',
     shirtColor: '#10b981',
     bgColor: '#15241d',
-    skillLevel: 5,
-    depth: 3,
-    movetime: 300,
-    blunderChance: 0.20
+    skillLevel: 6,
+    depth: 7,
+    movetime: 400,
+    blunderChance: 0.05,
+    maxBookPlies: 10
   },
   {
     level: 5,
@@ -100,10 +104,11 @@ export const BOT_PERSONAS = [
     hairColor: '#3a2318',
     shirtColor: '#8b5cf6',
     bgColor: '#1f162d',
-    skillLevel: 8,
-    depth: 5,
-    movetime: 400,
-    blunderChance: 0.10
+    skillLevel: 9,
+    depth: 9,
+    movetime: 450,
+    blunderChance: 0.02,
+    maxBookPlies: 12
   },
   {
     level: 6,
@@ -118,9 +123,10 @@ export const BOT_PERSONAS = [
     shirtColor: '#ec4899',
     bgColor: '#2b1522',
     skillLevel: 12,
-    depth: 7,
+    depth: 11,
     movetime: 500,
-    blunderChance: 0.03
+    blunderChance: 0.01,
+    maxBookPlies: 14
   },
   {
     level: 7,
@@ -135,9 +141,10 @@ export const BOT_PERSONAS = [
     shirtColor: '#0ea5e9',
     bgColor: '#12212b',
     skillLevel: 15,
-    depth: 10,
+    depth: 13,
     movetime: 600,
-    blunderChance: 0
+    blunderChance: 0,
+    maxBookPlies: 16
   },
   {
     level: 8,
@@ -152,9 +159,10 @@ export const BOT_PERSONAS = [
     shirtColor: '#ef4444',
     bgColor: '#291717',
     skillLevel: 18,
-    depth: 13,
+    depth: 15,
     movetime: 700,
-    blunderChance: 0
+    blunderChance: 0,
+    maxBookPlies: 18
   },
   {
     level: 9,
@@ -169,9 +177,10 @@ export const BOT_PERSONAS = [
     shirtColor: '#f97316',
     bgColor: '#281a13',
     skillLevel: 20,
-    depth: 15,
+    depth: 16,
     movetime: 800,
-    blunderChance: 0
+    blunderChance: 0,
+    maxBookPlies: 20
   },
   {
     level: 10,
@@ -188,7 +197,8 @@ export const BOT_PERSONAS = [
     skillLevel: 20,
     depth: 17,
     movetime: 900,
-    blunderChance: 0
+    blunderChance: 0,
+    maxBookPlies: 22
   },
   {
     level: 11,
@@ -205,7 +215,8 @@ export const BOT_PERSONAS = [
     skillLevel: 20,
     depth: 18,
     movetime: 1000,
-    blunderChance: 0
+    blunderChance: 0,
+    maxBookPlies: 24
   }
 ];
 

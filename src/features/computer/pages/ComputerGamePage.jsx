@@ -15,7 +15,7 @@ import { BotSelector } from '../../../components/board/BotSelector';
 import { PersonaAvatar } from '../../../components/board/PersonaAvatar';
 import { computeBotMove } from '../botController';
 import { playEngine } from '../../../services/engine/stockfishService';
-import { classifyMove } from '../../../services/analysis/classifier';
+import { classifyMove, calculateAccuracy } from '../../../services/analysis/classifier';
 import { identifyOpening } from '../../../services/openings/openingBook';
 import { soundEngine } from '../../../utils/sound';
 import { settingsManager, TIME_CONTROLS } from '../../../services/storage/settingsStore';
@@ -25,12 +25,14 @@ import { BOT_PERSONAS, getPersona } from '../../../data/botPersonas';
 // Re-export BOT_LEVELS for full backward compatibility
 export const BOT_LEVELS = BOT_PERSONAS.map((p) => ({
   level: p.level,
+  name: p.name,
   elo: p.elo,
   label: `${p.name} (~${p.elo} ELO)`,
   skillLevel: p.skillLevel,
   depth: p.depth,
   movetime: p.movetime,
-  blunderChance: p.blunderChance
+  blunderChance: p.blunderChance,
+  maxBookPlies: p.maxBookPlies
 }));
 
 export function ComputerGamePage() {
@@ -41,6 +43,7 @@ export function ComputerGamePage() {
   const [settings, setSettings] = useState(settingsManager.getAll());
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isLiveAnalysisEnabled, setIsLiveAnalysisEnabled] = useState(false);
+  const [isGameOverDismissed, setIsGameOverDismissed] = useState(false);
 
   // Match Configuration & Seating
   const [colorPreference, setColorPreference] = useState('random');
@@ -86,6 +89,7 @@ export function ComputerGamePage() {
   const [bestMoveArrow, setBestMoveArrow] = useState(null);
   const [currentOpening, setCurrentOpening] = useState(null);
   const [selectedMoveForExplanation, setSelectedMoveForExplanation] = useState(null);
+  const [matchAccuracies, setMatchAccuracies] = useState({ white: null, black: null });
 
   // Subscribe to settings changes
   useEffect(() => {
@@ -173,8 +177,16 @@ export function ComputerGamePage() {
     if (session.isGameOver && session.result) {
       soundEngine.playGameEnd();
       persistGame(session.result);
+
+      if (session.moves.length > 0) {
+        const whiteMoves = session.moves.filter((_, idx) => idx % 2 === 0);
+        const blackMoves = session.moves.filter((_, idx) => idx % 2 === 1);
+        const wAcc = calculateAccuracy(whiteMoves);
+        const bAcc = calculateAccuracy(blackMoves);
+        setMatchAccuracies({ white: wAcc, black: bAcc });
+      }
     }
-  }, [session.isGameOver, session.result, persistGame]);
+  }, [session.isGameOver, session.result, persistGame, session.moves]);
 
   // Reactive Sound Effects & Opening Recognition on any move
   const prevMovesCountRef = useRef(session.moves.length);
@@ -207,11 +219,14 @@ export function ComputerGamePage() {
     setEngineError(null);
 
     const fenBefore = currentSession.state.fen;
+    const allSans = currentSession.moves.map((m) => m.san);
 
     try {
       const result = await computeBotMove(fenBefore, activeBotConfig, {
         isCancelled: () => currentGen !== gameGenerationRef.current,
-        timeout: 4000
+        timeout: 4000,
+        playedSans: allSans,
+        persona: activePersona
       });
 
       if (currentGen !== gameGenerationRef.current || !result || !result.move) {
@@ -354,6 +369,8 @@ export function ComputerGamePage() {
       setCurrentOpening(null);
       setSelectedMoveForExplanation(null);
       setEngineError(null);
+      setIsGameOverDismissed(false);
+      setMatchAccuracies({ white: null, black: null });
 
       session.resetGame({
         initialTimeMs: tc.initialSeconds * 1000,
@@ -732,15 +749,17 @@ export function ComputerGamePage() {
 
       {/* Game Over Modal */}
       <GameOverModal
-        isOpen={session.isGameOver}
+        isOpen={session.isGameOver && !isGameOverDismissed}
         result={session.result}
         playerColor={playerColor}
         whiteName={playerColor === 'w' ? 'You' : activePersona.name}
         blackName={playerColor === 'b' ? 'You' : activePersona.name}
-        onNewGame={handleRestart}
-        onRematch={handleRestart}
+        whiteAccuracy={matchAccuracies.white}
+        blackAccuracy={matchAccuracies.black}
+        onNewGame={() => handleRestart()}
+        onRematch={() => handleRestart()}
         onStartReview={handleStartReview}
-        onClose={() => {}}
+        onClose={() => setIsGameOverDismissed(true)}
       />
 
       {/* Settings Modal */}

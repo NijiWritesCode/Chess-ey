@@ -13,8 +13,7 @@ export const TIME_CONTROLS = [
   { id: 'rapid-15-10', name: '15 | 10', initialSeconds: 900, increment: 10, category: 'Rapid' },
   { id: 'blitz-5', name: '5 min', initialSeconds: 300, increment: 0, category: 'Blitz' },
   { id: 'blitz-3-2', name: '3 | 2', initialSeconds: 180, increment: 2, category: 'Blitz' },
-  { id: 'bullet-1', name: '1 min', initialSeconds: 60, increment: 0, category: 'Bullet' },
-  { id: 'custom-unlimited', name: 'Unlimited', initialSeconds: 0, increment: 0, category: 'Casual' }
+  { id: 'bullet-1', name: '1 min', initialSeconds: 60, increment: 0, category: 'Bullet' }
 ];
 
 const DEFAULT_SETTINGS = {

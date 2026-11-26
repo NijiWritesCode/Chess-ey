@@ -16,6 +16,69 @@ export { generateSecureToken, hashToken };
 
 export const multiplayerApi = {
   /**
+   * Creates a local dual-tab room via BroadcastChannel and localStorage.
+   * Enables instant multiplayer testing between browser tabs without Supabase backend dependency.
+   */
+  createLocalRoom({ creatorColor = 'random', timeControl, playerName = 'Player' }) {
+    const roomId = `local_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+    const inviteToken = generateSecureToken();
+    const recoveryCredential = generateSecureToken();
+
+    const assignedColor =
+      creatorColor === 'random'
+        ? Math.random() < 0.5
+          ? 'w'
+          : 'b'
+        : creatorColor === 'white'
+        ? 'w'
+        : 'b';
+
+    const initialMs = (timeControl?.initialSeconds || 600) * 1000;
+    const incrementMs = (timeControl?.increment || 0) * 1000;
+
+    const roomData = {
+      id: roomId,
+      status: 'waiting',
+      white_id: assignedColor === 'w' ? 'local_creator' : null,
+      black_id: assignedColor === 'b' ? 'local_creator' : null,
+      white_name: assignedColor === 'w' ? playerName : null,
+      black_name: assignedColor === 'b' ? playerName : null,
+      initial_time_ms: initialMs,
+      increment_ms: incrementMs,
+      white_time_ms: initialMs,
+      black_time_ms: initialMs,
+      time_control_initial_ms: initialMs,
+      time_control_increment_ms: incrementMs,
+      version: 1,
+      creator_color: creatorColor,
+      invite_token: inviteToken,
+      fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      initial_fen: 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
+      turn: 'w',
+      created_at: new Date().toISOString()
+    };
+
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(`chessey_local_room_${roomId}`, JSON.stringify(roomData));
+        storeSeatRecoveryCredential(roomId, recoveryCredential);
+      }
+    } catch (e) {}
+
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    const shareUrl = `${origin}/play/${roomId}?invite=${inviteToken}`;
+
+    return {
+      roomId,
+      inviteToken,
+      recoveryCredential,
+      shareUrl,
+      playerColor: assignedColor,
+      room: roomData
+    };
+  },
+
+  /**
    * Creates a new multiplayer room via secure stored procedure.
    * Generates both an invitation token and an independent seat recovery credential.
    */
