@@ -28,6 +28,7 @@ export function useMultiplayerRoom(roomId, options = {}) {
   const [blackTimeMs, setBlackTimeMs] = useState(600000);
 
   const channelRef = useRef(null);
+  const localBcRef = useRef(null);
   const roomRef = useRef(null);
   roomRef.current = room;
 
@@ -35,7 +36,7 @@ export function useMultiplayerRoom(roomId, options = {}) {
   useEffect(() => {
     if (!roomId) return;
 
-    // Handle Local Dual-Tab rooms via BroadcastChannel & localStorage
+    // Handle Local Dual-Tab rooms via BroadcastChannel, Storage Events, & LocalStorage
     if (roomId.startsWith('local_')) {
       const localKey = `chessey_local_room_${roomId}`;
       let roomData = null;
@@ -56,20 +57,23 @@ export function useMultiplayerRoom(roomId, options = {}) {
         assignedColor = sessionStorage.getItem(sessionSeatKey);
       } catch (e) {}
 
-      // If user joined via invite token and opposite seat is free:
+      // If user joined and opposite seat is free:
       if (!assignedColor) {
-        if (inviteToken && roomData.status === 'waiting') {
-          const creatorSeat = roomData.white_id ? 'w' : 'b';
-          const joinSeat = creatorSeat === 'w' ? 'b' : 'w';
-          if (joinSeat === 'b' && !roomData.black_id) {
+        const creatorSeat = roomData.white_id === 'local_creator' ? 'w' : (roomData.black_id === 'local_creator' ? 'b' : null);
+        const openSeat = !roomData.white_id ? 'w' : (!roomData.black_id ? 'b' : null);
+
+        // If this tab opened with an invite token OR is a second tab joining an open seat:
+        if ((inviteToken || openSeat) && openSeat && creatorSeat && openSeat !== creatorSeat) {
+          const joinSeat = openSeat;
+          if (joinSeat === 'b') {
             roomData.black_id = 'local_opponent';
             roomData.black_name = playerName || 'Friend';
-            roomData.status = 'active';
-            roomData.last_move_timestamp = new Date().toISOString();
-          } else if (joinSeat === 'w' && !roomData.white_id) {
+          } else {
             roomData.white_id = 'local_opponent';
             roomData.white_name = playerName || 'Friend';
-            roomData.status = 'active';
+          }
+          roomData.status = 'active';
+          if (!roomData.last_move_timestamp) {
             roomData.last_move_timestamp = new Date().toISOString();
           }
           try {
@@ -78,11 +82,15 @@ export function useMultiplayerRoom(roomId, options = {}) {
           } catch (e) {}
           assignedColor = joinSeat;
         } else {
-          assignedColor = roomData.white_id === 'local_creator' ? 'w' : 'b';
+          assignedColor = creatorSeat || 'w';
           try {
             sessionStorage.setItem(sessionSeatKey, assignedColor);
           } catch (e) {}
         }
+      }
+
+      if (roomData.white_id && roomData.black_id) {
+        setIsOpponentOnline(true);
       }
 
       setPlayerColor(assignedColor);
@@ -101,7 +109,7 @@ export function useMultiplayerRoom(roomId, options = {}) {
       setCurrentPly(savedMoves.length);
 
       const bc = new BroadcastChannel(`chessey_channel_${roomId}`);
-      channelRef.current = bc;
+      localBcRef.current = bc;
 
       bc.onmessage = (ev) => {
         const msg = ev.data;
@@ -163,22 +171,100 @@ export function useMultiplayerRoom(roomId, options = {}) {
         }
       };
 
+      // Cross-Window Storage Event Synchronization
+      const handleStorageEvent = (e) => {
+        if (!e.key) return;
+        if (e.key === localKey && e.newValue) {
+          try {
+            const updated = JSON.parse(e.newValue);
+            if (updated) {
+              setRoom((prev) => {
+                if (!prev || (updated.version || 0) >= (prev.version || 0)) {
+                  return updated;
+                }
+                return prev;
+              });
+              setStatus(updated.status);
+              if (updated.white_id && updated.black_id) {
+                setIsOpponentOnline(true);
+              }
+            }
+          } catch (err) {}
+        }
+        if (e.key === movesKey && e.newValue) {
+          try {
+            const updatedMoves = JSON.parse(e.newValue);
+            if (Array.isArray(updatedMoves)) {
+              setMoves((prev) => {
+                if (updatedMoves.length > prev.length) {
+                  const last = updatedMoves[updatedMoves.length - 1];
+                  if (last?.san) {
+                    try {
+                      soundEngine.playMove(last.san);
+                    } catch (err) {}
+                  }
+                  setCurrentPly(updatedMoves.length);
+                  return updatedMoves;
+                }
+                return prev;
+              });
+            }
+          } catch (err) {}
+        }
+      };
+      window.addEventListener('storage', handleStorageEvent);
+
+      // Periodic safety reconciliation polling (every 300ms)
+      const syncPollTimer = setInterval(() => {
+        try {
+          const raw = localStorage.getItem(localKey);
+          if (raw) {
+            const stored = JSON.parse(raw);
+            if (stored) {
+              if (stored.version !== roomRef.current?.version || stored.status !== roomRef.current?.status) {
+                setRoom(stored);
+                setStatus(stored.status);
+              }
+              if (stored.white_id && stored.black_id) {
+                setIsOpponentOnline(true);
+              }
+            }
+          }
+          const rawMoves = localStorage.getItem(movesKey);
+          if (rawMoves) {
+            const storedMoves = JSON.parse(rawMoves);
+            if (Array.isArray(storedMoves)) {
+              setMoves((prev) => {
+                if (storedMoves.length !== prev.length) {
+                  setCurrentPly(storedMoves.length);
+                  return storedMoves;
+                }
+                return prev;
+              });
+            }
+          }
+        } catch (err) {}
+      }, 300);
+
       bc.postMessage({ type: 'presence' });
       const pingTimer = setInterval(() => {
         try {
           bc.postMessage({ type: 'presence' });
         } catch (e) {}
-      }, 2000);
+      }, 1000);
 
-      if (inviteToken) {
+      if (inviteToken || (roomData.white_id && roomData.black_id)) {
         bc.postMessage({ type: 'join', room: roomData });
       }
 
       return () => {
         clearInterval(pingTimer);
+        clearInterval(syncPollTimer);
+        window.removeEventListener('storage', handleStorageEvent);
         try {
           bc.close();
         } catch (e) {}
+        localBcRef.current = null;
       };
     }
 
@@ -296,7 +382,7 @@ export function useMultiplayerRoom(roomId, options = {}) {
 
   // 2. Realtime Channel Subscription (Postgres Changes, Presence, and Authoritative Move Notifications)
   useEffect(() => {
-    if (!roomId || !supabase || status === 'error' || status === 'loading') return;
+    if (!roomId || roomId.startsWith('local_') || !supabase || status === 'error' || status === 'loading') return;
 
     const channelName = `chess_room_${roomId}`;
     const channel = supabase.channel(channelName, {
@@ -675,9 +761,9 @@ export function useMultiplayerRoom(roomId, options = {}) {
             soundEngine.playMove(m.san);
           } catch (e) {}
 
-          if (channelRef.current) {
+          if (localBcRef.current) {
             try {
-              channelRef.current.postMessage({
+              localBcRef.current.postMessage({
                 type: 'move',
                 move: moveRecord,
                 fen: newFen,
@@ -789,12 +875,13 @@ export function useMultiplayerRoom(roomId, options = {}) {
         result: { winner, reason: 'resignation' }
       };
       setRoom(updatedRoom);
+      setStatus('completed');
       try {
         localStorage.setItem(`chessey_local_room_${roomId}`, JSON.stringify(updatedRoom));
       } catch (e) {}
-      if (channelRef.current) {
+      if (localBcRef.current) {
         try {
-          channelRef.current.postMessage({ type: 'resign', winner });
+          localBcRef.current.postMessage({ type: 'resign', winner });
         } catch (e) {}
       }
       return;
@@ -822,9 +909,9 @@ export function useMultiplayerRoom(roomId, options = {}) {
   const offerDraw = useCallback(async () => {
     if (!roomId) return;
     if (roomId.startsWith('local_')) {
-      if (channelRef.current) {
+      if (localBcRef.current) {
         try {
-          channelRef.current.postMessage({ type: 'draw_offer', color: playerColor });
+          localBcRef.current.postMessage({ type: 'draw_offer', color: playerColor });
         } catch (e) {}
       }
       return;
@@ -849,12 +936,13 @@ export function useMultiplayerRoom(roomId, options = {}) {
             result: { winner: 'draw', reason: 'draw' }
           };
           setRoom(updatedRoom);
+          setStatus('completed');
           try {
             localStorage.setItem(`chessey_local_room_${roomId}`, JSON.stringify(updatedRoom));
           } catch (e) {}
-          if (channelRef.current) {
+          if (localBcRef.current) {
             try {
-              channelRef.current.postMessage({ type: 'draw_accepted' });
+              localBcRef.current.postMessage({ type: 'draw_accepted' });
             } catch (e) {}
           }
         }
@@ -881,12 +969,13 @@ export function useMultiplayerRoom(roomId, options = {}) {
         result: { winner, reason: 'timeout' }
       };
       setRoom(updatedRoom);
+      setStatus('completed');
       try {
         localStorage.setItem(`chessey_local_room_${roomId}`, JSON.stringify(updatedRoom));
       } catch (e) {}
-      if (channelRef.current) {
+      if (localBcRef.current) {
         try {
-          channelRef.current.postMessage({ type: 'timeout', winner });
+          localBcRef.current.postMessage({ type: 'timeout', winner });
         } catch (e) {}
       }
       return;
@@ -903,9 +992,9 @@ export function useMultiplayerRoom(roomId, options = {}) {
     if (!roomId) return;
     if (roomId.startsWith('local_')) {
       setRoom((prev) => ({ ...prev, rematch_offered_by: playerColor }));
-      if (channelRef.current) {
+      if (localBcRef.current) {
         try {
-          channelRef.current.postMessage({ type: 'rematch_request', color: playerColor });
+          localBcRef.current.postMessage({ type: 'rematch_request', color: playerColor });
         } catch (e) {}
       }
       return { success: true };
@@ -926,9 +1015,9 @@ export function useMultiplayerRoom(roomId, options = {}) {
     if (!roomId) return;
     if (roomId.startsWith('local_')) {
       setRoom((prev) => ({ ...prev, rematch_offered_by: null }));
-      if (channelRef.current) {
+      if (localBcRef.current) {
         try {
-          channelRef.current.postMessage({ type: 'rematch_declined' });
+          localBcRef.current.postMessage({ type: 'rematch_declined' });
         } catch (e) {}
       }
       return { success: true };
@@ -955,9 +1044,9 @@ export function useMultiplayerRoom(roomId, options = {}) {
         increment: (room?.time_control_increment_ms || 0) / 1000
       });
       setRoom((prev) => ({ ...prev, rematch_room_id: newRoom.roomId }));
-      if (channelRef.current) {
+      if (localBcRef.current) {
         try {
-          channelRef.current.postMessage({ type: 'rematch_accepted', nextRoomId: newRoom.roomId });
+          localBcRef.current.postMessage({ type: 'rematch_accepted', nextRoomId: newRoom.roomId });
         } catch (e) {}
       }
       return { success: true, newRoomId: newRoom.roomId };
