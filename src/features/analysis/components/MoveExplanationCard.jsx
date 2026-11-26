@@ -37,6 +37,11 @@ export function MoveExplanationCard({
   const player = turn === 'w' ? 'White' : 'Black';
   const hasSuggestedLine = (bestMoveSan || pv.length > 0) && onPlaySuggestedLine;
 
+  const explanationText =
+    typeof explanation === 'string'
+      ? explanation
+      : explanation?.summary || explanation?.text || classification?.description || 'Move analyzed by Stockfish.';
+
   return (
     <div className="bg-canvas-card border border-canvas-border rounded-xl p-3.5 space-y-2.5 shadow-md">
       {/* Top: Move Notation & Badge */}
@@ -56,7 +61,7 @@ export function MoveExplanationCard({
 
       {/* Explanation text */}
       <p className="text-xs text-ivory leading-relaxed font-sans">
-        {explanation || classification?.description || 'Move analyzed by Stockfish.'}
+        {explanationText}
       </p>
 
       {/* Alternative suggestion if suboptimal */}

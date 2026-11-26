@@ -15,13 +15,18 @@ import {
   Wifi,
   WifiOff,
   Sparkles,
-  Download
+  Download,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import { useMultiplayerRoom } from '../hooks/useMultiplayerRoom';
+import { useMultiplayerAnalysis } from '../hooks/useMultiplayerAnalysis';
 import { Chessboard } from '../../game/components/Chessboard';
 import { MoveList } from '../../game/components/MoveList';
 import { Clock } from '../../game/components/Clock';
 import { GameOverModal } from '../../game/components/GameOverModal';
+import { EvaluationBar } from '../../analysis/components/EvaluationBar';
+import { AnalysisPanel } from '../../analysis/components/AnalysisPanel';
 import { SettingsModal } from '../../../components/modals/SettingsModal';
 import { settingsManager } from '../../../services/storage/settingsStore';
 import { reconstructGame } from '../../game/domain/moveHistory';
@@ -77,6 +82,40 @@ export function MultiplayerRoomPage() {
       navigate(`/play/${rematchRoomId}`);
     }
   }, [rematchRoomId, navigate]);
+
+  // Live Stockfish Analysis Controller (Phase 8.1 - 8.4)
+  const [enableLiveAnalysis, setEnableLiveAnalysis] = useState(() => settings.enableLiveAnalysis ?? true);
+
+  const {
+    currentEvaluation,
+    bestMoveArrow,
+    selectedMoveAnalysis,
+    isThinking,
+    getAnalysisForPly
+  } = useMultiplayerAnalysis({
+    roomId,
+    moves,
+    displayFen,
+    currentPly,
+    isEnabled: enableLiveAnalysis,
+    depth: settings.liveDepth || 12
+  });
+
+  // Enriched moves array with move classifications for MoveList
+  const enrichedMoves = useMemo(() => {
+    return moves.map((m) => {
+      const a = getAnalysisForPly(m.ply);
+      if (a?.classification) {
+        return { ...m, classification: a.classification };
+      }
+      return m;
+    });
+  }, [moves, getAnalysisForPly]);
+
+  const lastMoveClassification = useMemo(() => {
+    if (currentPly === 0) return null;
+    return getAnalysisForPly(currentPly)?.classification || null;
+  }, [currentPly, getAnalysisForPly]);
 
   // Visual board orientation
   const [userFlipped, setUserFlipped] = useState(false);
@@ -298,31 +337,45 @@ export function MultiplayerRoomPage() {
           />
         </div>
 
-        {/* Board Component */}
-        <div className="w-full aspect-square rounded-2xl overflow-hidden shadow-2xl border border-canvas-border relative">
-          <Chessboard
-            fen={displayFen}
-            orientation={orientation}
-            isInteractive={isMyTurn && room?.status === 'active'}
-            playerTurnColor={isMyTurn ? playerColor : null}
-            lastMove={lastMove}
-            onMove={makeMove}
-            themeId={settings.boardTheme}
-            showLegalMoves={settings.showLegalMoves ?? true}
-            showHighlights={settings.showHighlights ?? true}
-          />
-
-          {/* Jump to live overlay if user is browsing past moves */}
-          {!isLive && (
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30">
-              <button
-                onClick={() => navigatePly(moves.length)}
-                className="px-4 py-2 rounded-full bg-accent-500 hover:bg-accent-400 text-canvas text-xs font-bold shadow-xl transition-all animate-bounce"
-              >
-                Jump to Live Move
-              </button>
+        {/* Board & Evaluation Bar Container */}
+        <div className="w-full flex items-stretch gap-2.5">
+          {enableLiveAnalysis && (
+            <div className="shrink-0 flex items-center py-1">
+              <EvaluationBar
+                evaluation={currentEvaluation}
+                orientation={orientation}
+                height="100%"
+              />
             </div>
           )}
+
+          <div className="flex-1 aspect-square rounded-2xl overflow-hidden shadow-2xl border border-canvas-border relative">
+            <Chessboard
+              fen={displayFen}
+              orientation={orientation}
+              isInteractive={isMyTurn && room?.status === 'active'}
+              playerTurnColor={isMyTurn ? playerColor : null}
+              lastMove={lastMove}
+              lastMoveClassification={lastMoveClassification}
+              bestMoveArrow={enableLiveAnalysis ? bestMoveArrow : null}
+              onMove={makeMove}
+              themeId={settings.boardTheme}
+              showLegalMoves={settings.showLegalMoves ?? true}
+              showHighlights={settings.showHighlights ?? true}
+            />
+
+            {/* Jump to live overlay if user is browsing past moves */}
+            {!isLive && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-30">
+                <button
+                  onClick={() => navigatePly(moves.length)}
+                  className="px-4 py-2 rounded-full bg-accent-500 hover:bg-accent-400 text-canvas text-xs font-bold shadow-xl transition-all animate-bounce"
+                >
+                  Jump to Live Move
+                </button>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* User Player Bar */}
@@ -440,14 +493,14 @@ export function MultiplayerRoomPage() {
         )}
 
         {/* Move History Table */}
-        <div className="flex-1 min-h-[280px] max-h-[360px] bg-canvas-card border border-canvas-border rounded-2xl overflow-hidden shadow-md flex flex-col">
+        <div className="flex-1 min-h-[200px] max-h-[280px] bg-canvas-card border border-canvas-border rounded-2xl overflow-hidden shadow-md flex flex-col">
           <div className="px-4 py-2.5 border-b border-canvas-border/80 flex items-center justify-between text-xs font-bold text-ivory">
             <span>Move History</span>
             <span className="text-[11px] text-ivory-faint font-normal">{moves.length} plies</span>
           </div>
           <div className="flex-1 overflow-y-auto">
             <MoveList
-              moves={moves}
+              moves={enrichedMoves}
               currentPly={currentPly}
               onSelectPly={navigatePly}
               isLive={isLive}
@@ -455,13 +508,24 @@ export function MultiplayerRoomPage() {
           </div>
         </div>
 
+        {/* Live Stockfish Analysis Panel (Phase 8.3) */}
+        {enableLiveAnalysis && (
+          <div className="animate-fade-in">
+            <AnalysisPanel
+              evaluation={currentEvaluation}
+              isThinking={isThinking}
+              selectedMove={selectedMoveAnalysis}
+            />
+          </div>
+        )}
+
         {/* Match Controls */}
         <div className="p-3 bg-canvas-card border border-canvas-border rounded-2xl space-y-2 shadow-sm">
-          <div className="grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-5 gap-1.5">
             <button
               type="button"
               onClick={() => setUserFlipped((prev) => !prev)}
-              className="p-2.5 rounded-xl bg-canvas-subtle hover:bg-canvas-border text-ivory-muted hover:text-ivory text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all"
+              className="p-2 rounded-xl bg-canvas-subtle hover:bg-canvas-border text-ivory-muted hover:text-ivory text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all"
               title="Flip Board"
             >
               <RotateCcw className="w-4 h-4" />
@@ -470,9 +534,23 @@ export function MultiplayerRoomPage() {
 
             <button
               type="button"
+              onClick={() => setEnableLiveAnalysis((prev) => !prev)}
+              className={`p-2 rounded-xl border text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all ${
+                enableLiveAnalysis
+                  ? 'bg-accent-500/15 border-accent-500/40 text-accent-300'
+                  : 'bg-canvas-subtle hover:bg-canvas-border border-canvas-border text-ivory-muted hover:text-ivory'
+              }`}
+              title={enableLiveAnalysis ? 'Disable Live Engine' : 'Enable Live Engine'}
+            >
+              {enableLiveAnalysis ? <Eye className="w-4 h-4 text-accent-400" /> : <EyeOff className="w-4 h-4" />}
+              <span className="text-[10px]">Engine</span>
+            </button>
+
+            <button
+              type="button"
               disabled={room?.status !== 'active' || room?.draw_offered_by === playerColor}
               onClick={offerDraw}
-              className="p-2.5 rounded-xl bg-canvas-subtle hover:bg-canvas-border disabled:opacity-40 text-ivory-muted hover:text-ivory text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all"
+              className="p-2 rounded-xl bg-canvas-subtle hover:bg-canvas-border disabled:opacity-40 text-ivory-muted hover:text-ivory text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all"
               title="Offer Draw"
             >
               <Handshake className="w-4 h-4" />
@@ -483,7 +561,7 @@ export function MultiplayerRoomPage() {
               type="button"
               disabled={room?.status !== 'active'}
               onClick={() => setShowResignConfirm(true)}
-              className="p-2.5 rounded-xl bg-canvas-subtle hover:bg-red-500/20 hover:text-red-300 disabled:opacity-40 text-ivory-muted text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all"
+              className="p-2 rounded-xl bg-canvas-subtle hover:bg-red-500/20 hover:text-red-300 disabled:opacity-40 text-ivory-muted text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all"
               title="Resign Match"
             >
               <Flag className="w-4 h-4" />
@@ -493,7 +571,7 @@ export function MultiplayerRoomPage() {
             <button
               type="button"
               onClick={() => setIsSettingsOpen(true)}
-              className="p-2.5 rounded-xl bg-canvas-subtle hover:bg-canvas-border text-ivory-muted hover:text-ivory text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all"
+              className="p-2 rounded-xl bg-canvas-subtle hover:bg-canvas-border text-ivory-muted hover:text-ivory text-xs font-semibold flex flex-col items-center justify-center gap-1 transition-all"
               title="Settings"
             >
               <Settings className="w-4 h-4" />
