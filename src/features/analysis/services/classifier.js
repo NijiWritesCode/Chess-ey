@@ -561,3 +561,6 @@ export function calculateAccuracy(movesList = []) {
   const avgAcc = totalAcc / evaluatedMoves.length;
   return Math.min(100, Math.max(0, Math.round(avgAcc * 10) / 10));
 }
+
+export default classifyMove;
+

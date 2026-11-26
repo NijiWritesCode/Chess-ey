@@ -386,12 +386,14 @@ export const multiplayerApi = {
       throw new Error(data?.error || error?.message || 'Failed to accept rematch.');
     }
 
-    if (data.newRoomId) {
-      storeSeatRecoveryCredential(data.newRoomId, recoveryCredential);
+    const newRoomId = data.newRoomId || data.new_room_id;
+    if (newRoomId) {
+      storeSeatRecoveryCredential(newRoomId, recoveryCredential);
     }
 
     return {
       ...data,
+      newRoomId,
       inviteToken,
       recoveryCredential
     };

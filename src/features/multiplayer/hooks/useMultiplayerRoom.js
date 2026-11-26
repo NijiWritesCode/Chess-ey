@@ -524,11 +524,24 @@ export function useMultiplayerRoom(roomId, options = {}) {
   const resign = useCallback(async () => {
     if (!roomId) return;
     try {
-      await multiplayerApi.resignMatch(roomId);
+      const res = await multiplayerApi.resignMatch(roomId);
+      if (res?.success || res) {
+        setRoom((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'completed',
+                winner: playerColor === 'w' ? 'black' : 'white',
+                termination_reason: 'resignation',
+                result: { winner: playerColor === 'w' ? 'black' : 'white', reason: 'resignation' }
+              }
+            : prev
+        );
+      }
     } catch (e) {
       console.error('[useMultiplayerRoom] Resignation failed:', e);
     }
-  }, [roomId]);
+  }, [roomId, playerColor]);
 
   const offerDraw = useCallback(async () => {
     if (!roomId) return;
@@ -593,8 +606,9 @@ export function useMultiplayerRoom(roomId, options = {}) {
     if (!roomId) return;
     try {
       const res = await multiplayerApi.acceptRematch(roomId);
-      if (res?.newRoomId) {
-        setRoom((prev) => ({ ...prev, rematch_room_id: res.newRoomId }));
+      const newRoomId = res?.newRoomId || res?.new_room_id;
+      if (newRoomId) {
+        setRoom((prev) => ({ ...prev, rematch_room_id: newRoomId }));
       }
       return res;
     } catch (e) {

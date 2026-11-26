@@ -58,6 +58,7 @@ export function ComputerGamePage() {
 
   // Generation counter to protect async bot callbacks against stale game races
   const gameGenerationRef = useRef(0);
+  const savedGameIdRef = useRef(null);
 
   // Authoritative Game Session Hook from Phase 1
   const session = useGameSession({
@@ -133,11 +134,18 @@ export function ComputerGamePage() {
   const persistGame = useCallback(
     async (result) => {
       const pgn = session.state.pgn;
+      const gameId = `game_${Date.now()}`;
+      savedGameIdRef.current = gameId;
       const gameRecord = {
-        id: `game_${Date.now()}`,
+        id: gameId,
+        gameMode: 'computer',
         timestamp: Date.now(),
         opponent: `${activePersona.name} (~${activePersona.elo} ELO)`,
         playerColor,
+        players: {
+          white: { name: playerColor === 'w' ? 'You' : activePersona.name, isBot: playerColor !== 'w' },
+          black: { name: playerColor === 'b' ? 'You' : activePersona.name, isBot: playerColor !== 'b' }
+        },
         result,
         movesCount: session.moves.length,
         opening: currentOpening?.name || 'Standard Game',
@@ -326,16 +334,20 @@ export function ComputerGamePage() {
 
   // Launch full Game Review
   const handleStartReview = () => {
-    navigate('/review', {
-      state: {
-        pgn: session.state.pgn,
-        moves: session.moves,
-        playerColor,
-        whiteName: playerColor === 'w' ? 'You' : activePersona.name,
-        blackName: playerColor === 'b' ? 'You' : activePersona.name,
-        result: session.result
-      }
-    });
+    if (savedGameIdRef.current) {
+      navigate(`/review/${savedGameIdRef.current}`);
+    } else {
+      navigate('/review', {
+        state: {
+          pgn: session.state.pgn,
+          moves: session.moves,
+          playerColor,
+          whiteName: playerColor === 'w' ? 'You' : activePersona.name,
+          blackName: playerColor === 'b' ? 'You' : activePersona.name,
+          result: session.result
+        }
+      });
+    }
   };
 
   // Historical move selection

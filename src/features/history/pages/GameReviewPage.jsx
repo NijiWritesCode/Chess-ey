@@ -2,7 +2,7 @@
 // Reconstructs games move-by-move with Stockfish evaluations, accuracy metrics, momentum graphs, and mistake navigation.
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Chess } from 'chess.js';
 import { historyStorage } from '../services/historyStorage';
 import { analyzeFullGame } from '../services/reviewService';
@@ -36,6 +36,7 @@ import {
 export default function GameReviewPage() {
   const { gameId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [game, setGame] = useState(null);
   const [review, setReview] = useState(null);
@@ -51,14 +52,31 @@ export default function GameReviewPage() {
     let isCancelled = false;
 
     async function loadAndReview() {
-      if (!gameId) {
+      if (!gameId && !location.state) {
         setIsLoading(false);
         return;
       }
 
       setIsLoading(true);
       try {
-        let storedGame = await historyStorage.getGameById(gameId);
+        let storedGame = gameId ? await historyStorage.getGameById(gameId) : null;
+
+        // If no game found by ID but navigation state provided match details
+        if (!storedGame && location.state) {
+          const s = location.state;
+          storedGame = {
+            id: `review_temp_${Date.now()}`,
+            gameMode: 'computer',
+            timestamp: Date.now(),
+            white: { name: s.whiteName || 'White', isBot: false },
+            black: { name: s.blackName || 'Black', isBot: true },
+            result: s.result?.winner === 'white' ? '1-0' : s.result?.winner === 'black' ? '0-1' : '1/2-1/2',
+            reason: s.result?.reason || 'resignation',
+            winner: s.result?.winner || 'draw',
+            moves: s.moves || [],
+            pgn: s.pgn || ''
+          };
+        }
 
         // Fallback: If not found in local storage, fetch authoritative room from Supabase
         if (!storedGame && isSupabaseConfigured) {

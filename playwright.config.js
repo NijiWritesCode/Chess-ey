@@ -6,12 +6,13 @@ export default defineConfig({
   fullyParallel: true,
   retries: 0,
   use: {
-    baseURL: 'http://localhost:5173',
+    baseURL: 'http://localhost:5179',
     trace: 'on-first-retry',
+    channel: 'chrome',
   },
   webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:5173',
-    reuseExistingServer: true,
+    command: 'npm run dev -- --port 5179',
+    url: 'http://localhost:5179',
+    reuseExistingServer: false,
   },
 });

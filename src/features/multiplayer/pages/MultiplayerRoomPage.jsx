@@ -127,6 +127,7 @@ export function MultiplayerRoomPage() {
 
   // Modal / Confirmations
   const [showResignConfirm, setShowResignConfirm] = useState(false);
+  const [isGameOverDismissed, setIsGameOverDismissed] = useState(false);
   const [copiedInvite, setCopiedInvite] = useState(false);
   const [copiedPgn, setCopiedPgn] = useState(false);
 
@@ -632,15 +633,15 @@ export function MultiplayerRoomPage() {
 
       {/* Game Over Modal */}
       <GameOverModal
-        isOpen={isGameOver}
+        isOpen={isGameOver && !isGameOverDismissed}
         result={result}
         playerColor={playerColor}
         whiteName={players.white.name}
         blackName={players.black.name}
-        onRematch={requestRematch}
+        onRematch={rematchOfferedBy === opponentColor ? acceptRematch : requestRematch}
         onStartReview={() => navigate(`/review/${roomId}`)}
         onNewGame={() => navigate('/multiplayer')}
-        onClose={() => {}}
+        onClose={() => setIsGameOverDismissed(true)}
       />
 
       {/* Settings Modal */}
